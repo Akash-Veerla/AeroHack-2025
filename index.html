@@ -476,13 +476,19 @@
 
             // 2. Generate the full solution
             solvingSteps = generateSolution();
+
+            if (solvingSteps.length === 0) {
+                // Error message is shown by generateSolution
+                return;
+            }
+
             currentStepIndex = -1; // Start before the first step
 
             // 3. Switch to solve view
             setupSection.style.display = 'none';
             solveSection.style.display = 'flex';
 
-            // 4. Start the solving process
+            // 4. Set up the UI for the first step, but don't apply any moves yet
             updateUIForStep();
         }
 
