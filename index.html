@@ -597,9 +597,8 @@
                 applyMove(randomMove);
             }
 
-            // Directly call startSolving, which will now see the scrambled state
             updateCubeDisplay();
-            startSolving();
+            showMessage("Cube has been scrambled. Click 'Start Solving' to begin.", 3000);
         }
 
         function updateNavigationButtons() {
