@@ -789,11 +789,19 @@
 
                 let edgeToInsert = null;
                 const bottomEdges = ['DF', 'DL', 'DR', 'DB'];
+                const faceMap = { F: 'front', L: 'left', R: 'right', B: 'back' };
+                const bottomIndexMap = { DF: 1, DL: 3, DR: 5, DB: 7 };
+
                 for (const posName of bottomEdges) {
-                    const edgeData = findEdge(tempState, tempState.bottom[posName === 'DF' ? 1 : posName === 'DL' ? 3 : posName === 'DR' ? 5 : 7], tempState[posName.charAt(1).toLowerCase() + 'ace'][7]);
+                    const sideFaceName = faceMap[posName.charAt(1)];
+                    const bottomStickerIndex = bottomIndexMap[posName];
+                    const sideStickerIndex = 7;
+
+                    const edgeData = findEdge(tempState, tempState.bottom[bottomStickerIndex], tempState[sideFaceName][sideStickerIndex]);
+
                     if (edgeData && !edgeData.colorOnFace1.includes('yellow') && !edgeData.colorOnFace2.includes('yellow')) {
                         const middleEdge = middleEdges.find(me => me.colors.includes(edgeData.colorOnFace1) && me.colors.includes(edgeData.colorOnFace2));
-                        if(findEdge(tempState, ...middleEdge.colors).pos.name !== middleEdge.home) {
+                        if(middleEdge && findEdge(tempState, ...middleEdge.colors).pos.name !== middleEdge.home) {
                             edgeToInsert = edgeData;
                             break;
                         }
