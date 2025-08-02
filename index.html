@@ -660,7 +660,7 @@
         // --- Stage 1: White Cross ---
         function solveWhiteCross(steps, initialCubeState) {
             let tempState = JSON.parse(JSON.stringify(initialCubeState));
-            steps.push({ simpleText: "Step 1: Solve the White Cross", detailedText: "We will now solve the white cross on the top face...", move: null });
+            const stageTitle = "Step 1: White Cross";
 
             const edgesToSolve = [
                 { colors: ['white', 'green'], targetFace: 'front' }, { colors: ['white', 'red'], targetFace: 'right' },
@@ -678,12 +678,12 @@
 
                     if (pos.faces.includes('top')) {
                         const move = faceToMove[pos.faces[1]];
-                        tempState = applyMovesToTempState(move, steps, `Move ${edge.colors.join('-')} out of top layer`, `...`, tempState);
+                        tempState = applyMovesToTempState(move, steps, `${stageTitle}: Move ${edge.colors.join('-')} out of top layer`, `Moving from ${pos.name} to the bottom layer.`, tempState);
                         continue;
                     }
                     if (['FL', 'FR', 'BL', 'BR'].includes(pos.name)) {
                         const move = pos.name.includes('R') ? 'R' : 'L';
-                        tempState = applyMovesToTempState(getInverseMove(move), steps, `Move ${edge.colors.join('-')} from middle layer`, `...`, tempState);
+                        tempState = applyMovesToTempState(getInverseMove(move), steps, `${stageTitle}: Move ${edge.colors.join('-')} from middle layer`, `Moving from ${pos.name} to the bottom layer.`, tempState);
                         continue;
                     }
                     if (pos.faces.includes('bottom')) {
@@ -696,19 +696,19 @@
                             const currentIdx = faceOrder.indexOf(currentSideFace);
                             let diff = (targetIdx - currentIdx + 4) % 4;
                             let moves = ['', 'D', 'D D', 'D_prime'][diff];
-                            if (moves) tempState = applyMovesToTempState(moves, steps, `Align ${edge.colors.join('-')} edge`, `...`, tempState);
+                            if (moves) tempState = applyMovesToTempState(moves, steps, `${stageTitle}: Align ${edge.colors.join('-')} edge`, `Positioning the edge under its destination.`, tempState);
                             const finalMove = `${faceToMove[targetCenterFace]} ${faceToMove[targetCenterFace]}`;
-                            tempState = applyMovesToTempState(finalMove, steps, `Insert ${edge.colors.join('-')} edge`, `...`, tempState);
+                            tempState = applyMovesToTempState(finalMove, steps, `${stageTitle}: Insert ${edge.colors.join('-')} edge`, `Flipping the edge into the white cross.`, tempState);
                         } else {
                             const targetIdx = faceOrder.indexOf(edge.targetFace);
                             const currentIdx = faceOrder.indexOf(pos.faces[1]);
                             let diff = (targetIdx - currentIdx + 4) % 4;
                             let moves = ['', 'D', 'D D', 'D_prime'][diff];
-                            if (moves) tempState = applyMovesToTempState(moves, steps, `Position ${edge.colors.join('-')} for insertion`, `...`, tempState);
+                            if (moves) tempState = applyMovesToTempState(moves, steps, `${stageTitle}: Position ${edge.colors.join('-')} for insertion`, `Moving the edge to its target face.`, tempState);
                             const face = faceToMove[edge.targetFace];
                             const rightFace = faceToMove[faceOrder[(targetIdx + 1) % 4]];
                             const insertionAlg = `${getInverseMove(face)} ${getInverseMove(rightFace)} ${face}`;
-                            tempState = applyMovesToTempState(insertionAlg, steps, `Insert ${edge.colors.join('-')} edge`, `...`, tempState);
+                            tempState = applyMovesToTempState(insertionAlg, steps, `${stageTitle}: Insert ${edge.colors.join('-')} edge`, `Using algorithm ${insertionAlg} to insert the edge.`, tempState);
                         }
                         break;
                     }
@@ -734,7 +734,7 @@
         // --- Stage 2: White Corners ---
         function solveWhiteCorners(steps, initialCubeState) {
             let tempState = JSON.parse(JSON.stringify(initialCubeState));
-            steps.push({ simpleText: "Step 2: Solve the White Corners", detailedText: "With the cross solved, we will now insert the four white corner pieces...", move: null });
+            const stageTitle = "Step 2: White Corners";
 
             const cornersToSolve = [
                 { colors: ['white', 'green', 'orange'], targetPos: 'UFL' }, { colors: ['white', 'green', 'red'], targetPos: 'UFR' },
@@ -751,7 +751,7 @@
                     if (pos.name.startsWith('U')) {
                         const move = pos.name.includes('R') ? 'R' : 'L';
                         const sequence = `${getInverseMove(move)} D ${move}`;
-                        tempState = applyMovesToTempState(sequence, steps, `Bring ${corner.colors.join('-')} down`, `...`, tempState);
+                        tempState = applyMovesToTempState(sequence, steps, `${stageTitle}: Bring ${corner.colors.join('-')} down`, `Moving the corner from the top to the bottom layer.`, tempState);
                         continue;
                     }
                     if (pos.name.startsWith('D')) {
@@ -759,11 +759,11 @@
                         const currentSlotName = pos.name;
                         const diff = (posMap[targetSlotName] - posMap[currentSlotName] + 4) % 4;
                         let dMoves = ['', 'D', 'D D', 'D_prime'][diff];
-                        if (dMoves) tempState = applyMovesToTempState(dMoves, steps, `Position ${corner.colors.join('-')} corner`, `...`, tempState);
+                        if (dMoves) tempState = applyMovesToTempState(dMoves, steps, `${stageTitle}: Position ${corner.colors.join('-')} corner`, `Moving the corner under its target slot.`, tempState);
 
                         const targetFace = corner.targetPos.includes('R') ? 'R' : 'L';
                         const sequence = `${getInverseMove(targetFace)} D_prime ${targetFace} D`;
-                        tempState = applyMovesToTempState(sequence, steps, `Insert ${corner.colors.join('-')} corner`, `...`, tempState);
+                        tempState = applyMovesToTempState(sequence, steps, `${stageTitle}: Insert ${corner.colors.join('-')} corner`, `Repeating algorithm to orient and insert the corner.`, tempState);
                     }
                 }
             }
@@ -773,7 +773,7 @@
         // --- Stage 3: Middle Layer ---
         function solveMiddleLayer(steps, initialCubeState) {
             let tempState = JSON.parse(JSON.stringify(initialCubeState));
-            steps.push({ simpleText: "Step 3: Solve the Middle Layer", detailedText: "Next, we'll solve the middle layer by inserting the four edge pieces...", move: null });
+            const stageTitle = "Step 3: Middle Layer";
             const middleEdges = [
                 { colors: ['green', 'red'], home: 'FR' }, { colors: ['green', 'orange'], home: 'FL' },
                 { colors: ['blue', 'red'], home: 'BR' }, { colors: ['blue', 'orange'], home: 'BL' }
@@ -809,17 +809,17 @@
                     const currentIdx = faceOrder.indexOf(currentFace);
                     let diff = (targetIdx - currentIdx + 4) % 4;
                     let dMoves = ['', 'D', 'D D', 'D_prime'][diff];
-                    if (dMoves) tempState = applyMovesToTempState(dMoves, steps, `Align ${sideColor}-${bottomColor} edge`, `...`, tempState);
+                    if (dMoves) tempState = applyMovesToTempState(dMoves, steps, `${stageTitle}: Align ${sideColor}-${bottomColor} edge`, `Aligning the edge with its center color.`, tempState);
 
                     const destColor = bottomColor;
                     const rightFace = faceOrder[(faceOrder.indexOf(alignToFace) + 1) % 4];
                     const moves = solvedCubeState[rightFace][4] === destColor ? `D R D' R' D' F' D F` : `D' L' D L D F D' F'`;
-                    tempState = applyMovesToTempState(moves, steps, `Insert ${sideColor}-${destColor} into middle layer`, `...`, tempState);
+                    tempState = applyMovesToTempState(moves, steps, `${stageTitle}: Insert ${sideColor}-${destColor}`, `Using algorithm to place the edge.`, tempState);
                 } else {
                     let wrongEdge = middleEdges.map(edge => findEdge(tempState, ...edge.colors)).find(loc => loc.pos.name !== middleEdges.find(me => me.colors.includes(loc.colorOnFace1) && me.colors.includes(loc.colorOnFace2)).home);
                     if (wrongEdge) {
                         const moves = `D R D' R' D' F' D F`; // Just use right-insert to displace
-                        tempState = applyMovesToTempState(moves, steps, `Displace ${wrongEdge.colorOnFace1}-${wrongEdge.colorOnFace2} edge`, `...`, tempState);
+                        tempState = applyMovesToTempState(moves, steps, `${stageTitle}: Displace ${wrongEdge.colorOnFace1}-${wrongEdge.colorOnFace2} edge`, `Moving a wrongly placed edge out of the middle layer.`, tempState);
                     }
                 }
             }
@@ -829,7 +829,7 @@
         // --- Stage 4: Yellow Cross ---
         function solveYellowCross(steps, initialCubeState) {
             let tempState = JSON.parse(JSON.stringify(initialCubeState));
-            steps.push({ simpleText: "Step 4: Create the Yellow Cross", detailedText: "Now, we will form a cross on the yellow face...", move: null });
+            const stageTitle = "Step 4: Yellow Cross";
             const algLine = "F R D R' D' F'";
             const algL = "F D R D' R' F'";
 
@@ -842,19 +842,19 @@
                 if (count === 4) break;
 
                 if (count === 0) {
-                    tempState = applyMovesToTempState(algLine, steps, "Making the cross (from dot)", "...", tempState);
+                    tempState = applyMovesToTempState(algLine, steps, `${stageTitle}: From Dot`, `Applying algorithm to create the initial L-shape.`, tempState);
                 } else if (count === 2) {
                     const isLine = (yellowEdges.front && yellowEdges.back) || (yellowEdges.left && yellowEdges.right);
                     if (isLine) {
-                        if (yellowEdges.front && yellowEdges.back) tempState = applyMovesToTempState("D", steps, "Orienting the line", "...", tempState);
-                        tempState = applyMovesToTempState(algLine, steps, "Making the cross (from line)", "...", tempState);
+                        if (yellowEdges.front && yellowEdges.back) tempState = applyMovesToTempState("D", steps, `${stageTitle}: Orient Line`, `Making the line horizontal.`, tempState);
+                        tempState = applyMovesToTempState(algLine, steps, `${stageTitle}: From Line`, `Applying algorithm to turn the line into a cross.`, tempState);
                     } else {
                         let dMoves = '';
                         if (yellowEdges.front && yellowEdges.right) dMoves = "D";
                         else if (yellowEdges.front && yellowEdges.left) dMoves = "D D";
                         else if (yellowEdges.back && yellowEdges.right) dMoves = "D_prime";
-                        if (dMoves) tempState = applyMovesToTempState(dMoves, steps, "Orienting the L-shape", "...", tempState);
-                        tempState = applyMovesToTempState(algL, steps, "Making the cross (from L-shape)", "...", tempState);
+                        if (dMoves) tempState = applyMovesToTempState(dMoves, steps, `${stageTitle}: Orient L-shape`, `Positioning the L-shape in the back-left.`, tempState);
+                        tempState = applyMovesToTempState(algL, steps, `${stageTitle}: From L-shape`, `Applying algorithm to turn the L-shape into a line.`, tempState);
                     }
                 }
             }
@@ -864,13 +864,13 @@
         // --- Stage 5: Position Last Layer Edges ---
         function positionLastLayerEdges(steps, initialCubeState) {
             let tempState = JSON.parse(JSON.stringify(initialCubeState));
-            steps.push({ simpleText: "Step 5: Position the Last Layer Edges", detailedText: "With the yellow cross formed, we will now position the yellow edges...", move: null });
+            const stageTitle = "Step 5: Position Edges";
             const alg = "R D R' D R D D R' D";
 
             for (let i = 0; i < 4; i++) {
                 const solvedCount = ['front', 'right', 'back', 'left'].filter(f => tempState[f][7] === solvedCubeState[f][4]).length;
                 if (solvedCount >= 2) break;
-                tempState = applyMovesToTempState("D", steps, "Aligning cross", "...", tempState);
+                tempState = applyMovesToTempState("D", steps, `${stageTitle}: Align Cross`, `Trying to match as many edges as possible.`, tempState);
             }
 
             for (let i = 0; i < 3; i++) {
@@ -885,11 +885,11 @@
                     if (solvedEdges.front && solvedEdges.left) setupMoves = "D";
                     else if (solvedEdges.front && solvedEdges.right) setupMoves = "D D";
                     else if (solvedEdges.right && solvedEdges.back) setupMoves = "D_prime";
-                    if (setupMoves) tempState = applyMovesToTempState(setupMoves, steps, "Orienting for edge permutation", "...", tempState);
-                    tempState = applyMovesToTempState(alg, steps, "Permuting adjacent edges", "...", tempState);
+                    if (setupMoves) tempState = applyMovesToTempState(setupMoves, steps, `${stageTitle}: Orient Adjacent`, `Positioning solved edges to the back and left.`, tempState);
+                    tempState = applyMovesToTempState(alg, steps, `${stageTitle}: Permute Adjacent`, `Solving the final two edges.`, tempState);
                 } else {
-                    if (solvedEdges.left && solvedEdges.right) tempState = applyMovesToTempState("D", steps, "Orienting opposite edges", "...", tempState);
-                    tempState = applyMovesToTempState(alg, steps, "Permuting opposite edges", "...", tempState);
+                    if (solvedEdges.left && solvedEdges.right) tempState = applyMovesToTempState("D", steps, `${stageTitle}: Orient Opposite`, `Positioning a solved edge to the back.`, tempState);
+                    tempState = applyMovesToTempState(alg, steps, `${stageTitle}: Permute Opposite`, `This will result in two adjacent edges being solved.`, tempState);
                 }
             }
             return tempState;
@@ -898,7 +898,7 @@
         // --- Stage 6: Position Last Layer Corners ---
         function positionLastLayerCorners(steps, initialCubeState) {
             let tempState = JSON.parse(JSON.stringify(initialCubeState));
-            steps.push({ simpleText: "Step 6: Position the Last Layer Corners", detailedText: "Next, we will move the corners to their correct positions...", move: null });
+            const stageTitle = "Step 6: Position Corners";
             const alg = "D R D' L' D R' D' L";
 
             for (let i = 0; i < 4; i++) {
@@ -915,10 +915,10 @@
                     if (solvedCornerName === 'DFL') setupMoves = 'D';
                     else if (solvedCornerName === 'DFR') setupMoves = 'D D';
                     else if (solvedCornerName === 'DBL') setupMoves = "D_prime";
-                    if (setupMoves) tempState = applyMovesToTempState(setupMoves, steps, "Orienting for corner permutation", "...", tempState);
-                    tempState = applyMovesToTempState(alg, steps, "Permuting three corners", "...", tempState);
+                    if (setupMoves) tempState = applyMovesToTempState(setupMoves, steps, `${stageTitle}: Orient for Permutation`, `Placing the solved corner in the back-right.`, tempState);
+                    tempState = applyMovesToTempState(alg, steps, `${stageTitle}: Permute 3 Corners`, `Cycling the remaining three corners into position.`, tempState);
                 } else {
-                    tempState = applyMovesToTempState(alg, steps, "Permuting corners", "...", tempState);
+                    tempState = applyMovesToTempState(alg, steps, `${stageTitle}: Permute Corners`, `Applying algorithm to position at least one corner correctly.`, tempState);
                 }
             }
             return tempState;
@@ -940,16 +940,16 @@
         // --- Stage 7: Orient Last Layer Corners ---
         function orientLastLayerCorners(steps, initialCubeState) {
             let tempState = JSON.parse(JSON.stringify(initialCubeState));
-            steps.push({ simpleText: "Step 7: Orient the Last Layer Corners", detailedText: "Finally, we will orient the last layer corners to solve the cube...", move: null });
+            const stageTitle = "Step 7: Orient Corners";
             const alg = "R' D' R D";
             const cornerPositions = ['DFR', 'DFL', 'DBL', 'DBR'];
 
             for (const posName of cornerPositions) {
                 while (tempState.bottom[findCornerByPos(tempState, posName).pos.indices[0]] !== 'yellow') {
-                    tempState = applyMovesToTempState(alg, steps, `Orienting the ${posName} corner`, "...", tempState);
+                    tempState = applyMovesToTempState(alg, steps, `${stageTitle}: Orient ${posName} Corner`, `Repeating algorithm until the corner's yellow sticker is on the bottom face.`, tempState);
                 }
                 if (posName !== 'DBR') {
-                   tempState = applyMovesToTempState("D", steps, "Move to next corner", "...", tempState);
+                   tempState = applyMovesToTempState("D", steps, `${stageTitle}: Move to Next Corner`, `Bringing the next corner into the working position.`, tempState);
                 }
             }
 
@@ -962,7 +962,7 @@
             let diff = (targetIdx - currentIdx + 4) % 4;
             let dMoves = ['', 'D_prime', 'D D', 'D'][diff];
             if (dMoves) {
-                tempState = applyMovesToTempState(dMoves, steps, "Final Alignment", "...", tempState);
+                tempState = applyMovesToTempState(dMoves, steps, "Final Alignment", "Aligning the last layer with the rest of the cube.", tempState);
             }
             return tempState;
         }
