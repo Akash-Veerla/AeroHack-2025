@@ -487,33 +487,21 @@
                 currentStepIndex++;
                 const step = solvingSteps[currentStepIndex];
                 if (step.move) {
-                    applyMove(step.move);
+                    applyMove(step.move); // This now applies to the main cubeState
                 }
                 updateUIForStep();
-
-                if (isSolved()) {
-                    showMessage("Congratulations! The cube is solved!", 5000);
-                    document.getElementById('nextStepBtn').disabled = true;
-                }
-            } else {
-                showMessage("You have reached the end of this guide.", 2000);
             }
         }
 
         function previousStep() {
-            if (currentStepIndex > -1) {
+            if (currentStepIndex > 0) {
                 const step = solvingSteps[currentStepIndex];
                 if (step.move) {
                     const inverseMove = getInverseMove(step.move);
-                    applyMove(inverseMove);
+                    applyMove(inverseMove); // This now applies to the main cubeState
                 }
                 currentStepIndex--;
                 updateUIForStep();
-
-                // Re-enable the next step button if we move back from a solved state
-                document.getElementById('nextStepBtn').disabled = false;
-            } else {
-                showMessage("You are at the beginning of the solution.", 2000);
             }
         }
 
@@ -607,45 +595,176 @@
 
         // --- Core Solving Algorithm Logic ---
         function generateSolution() {
+            const tempState = JSON.parse(JSON.stringify(cubeState));
             let solutionSteps = [];
 
-            const simulationState = JSON.parse(JSON.stringify(cubeState));
-
-            solutionSteps.push(...solveWhiteCross(simulationState));
-            solutionSteps.push(...solveWhiteCorners(simulationState));
-            solutionSteps.push(...solveMiddleLayer(simulationState));
-            solutionSteps.push(...solveYellowCross(simulationState));
-            solutionSteps.push(...permuteLastLayerEdges(simulationState));
-            solutionSteps.push(...permuteLastLayerCorners(simulationState));
-            solutionSteps.push(...orientLastLayerCorners(simulationState));
+            // Each function will now take a state, modify it, and return the steps
+            solutionSteps.push(...solveWhiteCross(tempState));
+            solutionSteps.push(...solveWhiteCorners(tempState));
+            solutionSteps.push(...solveMiddleLayer(tempState));
+            solutionSteps.push(...solveYellowCross(tempState));
+            solutionSteps.push(...permuteLastLayerEdges(tempState));
+            solutionSteps.push(...permuteLastLayerCorners(tempState));
+            solutionSteps.push(...orientLastLayerCorners(tempState));
 
             return solutionSteps;
         }
 
-        // Helper to apply a sequence of moves to a given cube state
-        function applyMoveSequence(state, moves) {
-            let tempState = JSON.parse(JSON.stringify(state));
-            for (const move of moves.split(' ')) {
-                // This is a placeholder for the actual applyMove logic on a given state
-                // For now, we'll just log it. A proper implementation would be needed.
+        function applyMoveToState(state, move) {
+            const newState = JSON.parse(JSON.stringify(state));
+            let tempRow, tempCol;
+
+            switch (move) {
+                case 'U':
+                    newState.top = rotateFaceClockwise(newState.top);
+                    tempRow = newState.front.slice(0, 3);
+                    newState.front.splice(0, 3, ...newState.right.slice(0, 3));
+                    newState.right.splice(0, 3, ...newState.back.slice(0, 3));
+                    newState.back.splice(0, 3, ...newState.left.slice(0, 3));
+                    newState.left.splice(0, 3, ...tempRow);
+                    break;
+                case 'U_prime':
+                    newState.top = rotateFaceCounterClockwise(newState.top);
+                    tempRow = newState.front.slice(0, 3);
+                    newState.front.splice(0, 3, ...newState.left.slice(0, 3));
+                    newState.left.splice(0, 3, ...newState.back.slice(0, 3));
+                    newState.back.splice(0, 3, ...newState.right.slice(0, 3));
+                    newState.right.splice(0, 3, ...tempRow);
+                    break;
+                case 'D':
+                    newState.bottom = rotateFaceClockwise(newState.bottom);
+                    tempRow = newState.front.slice(6, 9);
+                    newState.front.splice(6, 3, ...newState.left.slice(6, 9));
+                    newState.left.splice(6, 3, ...newState.back.slice(6, 9));
+                    newState.back.splice(6, 3, ...newState.right.slice(6, 9));
+                    newState.right.splice(6, 3, ...tempRow);
+                    break;
+                case 'D_prime':
+                    newState.bottom = rotateFaceCounterClockwise(newState.bottom);
+                    tempRow = newState.front.slice(6, 9);
+                    newState.front.splice(6, 3, ...newState.right.slice(6, 9));
+                    newState.right.splice(6, 3, ...newState.back.slice(6, 9));
+                    newState.back.splice(6, 3, ...newState.left.slice(6, 9));
+                    newState.left.splice(6, 3, ...tempRow);
+                    break;
+                case 'R':
+                    newState.right = rotateFaceClockwise(newState.right);
+                    tempCol = [newState.front[2], newState.front[5], newState.front[8]];
+                    newState.front[2] = newState.bottom[2]; newState.front[5] = newState.bottom[5]; newState.front[8] = newState.bottom[8];
+                    newState.bottom[2] = newState.back[6]; newState.bottom[5] = newState.back[3]; newState.bottom[8] = newState.back[0];
+                    newState.back[6] = newState.top[2]; newState.back[3] = newState.top[5]; newState.back[0] = newState.top[8];
+                    newState.top[2] = tempCol[0]; newState.top[5] = tempCol[1]; newState.top[8] = tempCol[2];
+                    break;
+                case 'R_prime':
+                    newState.right = rotateFaceCounterClockwise(newState.right);
+                    tempCol = [newState.front[2], newState.front[5], newState.front[8]];
+                    newState.front[2] = newState.top[2]; newState.front[5] = newState.top[5]; newState.front[8] = newState.top[8];
+                    newState.top[2] = newState.back[6]; newState.top[5] = newState.back[3]; newState.top[8] = newState.back[0];
+                    newState.back[6] = newState.bottom[2]; newState.back[3] = newState.bottom[5]; newState.back[0] = newState.bottom[8];
+                    newState.bottom[2] = tempCol[0]; newState.bottom[5] = tempCol[1]; newState.bottom[8] = tempCol[2];
+                    break;
+                case 'L':
+                    newState.left = rotateFaceClockwise(newState.left);
+                    tempCol = [newState.front[0], newState.front[3], newState.front[6]];
+                    newState.front[0] = newState.top[0]; newState.front[3] = newState.top[3]; newState.front[6] = newState.top[6];
+                    newState.top[0] = newState.back[8]; newState.top[3] = newState.back[5]; newState.top[6] = newState.back[2];
+                    newState.back[8] = newState.bottom[0]; newState.back[5] = newState.bottom[3]; newState.back[2] = newState.bottom[6];
+                    newState.bottom[0] = tempCol[0]; newState.bottom[3] = tempCol[1]; newState.bottom[6] = tempCol[2];
+                    break;
+                case 'L_prime':
+                    newState.left = rotateFaceCounterClockwise(newState.left);
+                    tempCol = [newState.front[0], newState.front[3], newState.front[6]];
+                    newState.front[0] = newState.bottom[0]; newState.front[3] = newState.bottom[3]; newState.front[6] = newState.bottom[6];
+                    newState.bottom[0] = newState.back[8]; newState.bottom[3] = newState.back[5]; newState.bottom[6] = newState.back[2];
+                    newState.back[8] = newState.top[0]; newState.back[5] = newState.top[3]; newState.back[2] = newState.top[6];
+                    newState.top[0] = tempCol[0]; newState.top[3] = tempCol[1]; newState.top[6] = tempCol[2];
+                    break;
+                case 'F':
+                    newState.front = rotateFaceClockwise(newState.front);
+                    tempRow = [newState.top[6], newState.top[7], newState.top[8]];
+                    newState.top[6] = newState.left[8]; newState.top[7] = newState.left[5]; newState.top[8] = newState.left[2];
+                    newState.left[8] = newState.bottom[2]; newState.left[5] = newState.bottom[1]; newState.left[2] = newState.bottom[0];
+                    newState.bottom[2] = newState.right[0]; newState.bottom[1] = newState.right[3]; newState.bottom[0] = newState.right[6];
+                    newState.right[0] = tempRow[0]; newState.right[3] = tempRow[1]; newState.right[6] = tempRow[2];
+                    break;
+                case 'F_prime':
+                    newState.front = rotateFaceCounterClockwise(newState.front);
+                    tempRow = [newState.top[6], newState.top[7], newState.top[8]];
+                    newState.top[6] = newState.right[0]; newState.top[7] = newState.right[3]; newState.top[8] = newState.right[6];
+                    newState.right[0] = newState.bottom[2]; newState.right[3] = newState.bottom[1]; newState.right[6] = newState.bottom[0];
+                    newState.bottom[2] = newState.left[8]; newState.bottom[1] = newState.left[5]; newState.bottom[0] = newState.left[2];
+                    newState.left[8] = tempRow[0]; newState.left[5] = tempRow[1]; newState.left[2] = tempRow[2];
+                    break;
+                case 'B':
+                    newState.back = rotateFaceClockwise(newState.back);
+                    tempRow = [newState.top[0], newState.top[1], newState.top[2]];
+                    newState.top[0] = newState.right[2]; newState.top[1] = newState.right[5]; newState.top[2] = newState.right[8];
+                    newState.right[2] = newState.bottom[8]; newState.right[5] = newState.bottom[7]; newState.right[8] = newState.bottom[6];
+                    newState.bottom[8] = newState.left[6]; newState.bottom[7] = newState.left[3]; newState.bottom[6] = newState.left[0];
+                    newState.left[6] = tempRow[0]; newState.left[3] = tempRow[1]; newState.left[0] = tempRow[2];
+                    break;
+                case 'B_prime':
+                    newState.back = rotateFaceCounterClockwise(newState.back);
+                    tempRow = [newState.top[0], newState.top[1], newState.top[2]];
+                    newState.top[0] = newState.left[6]; newState.top[1] = newState.left[3]; newState.top[2] = newState.left[0];
+                    newState.left[6] = newState.bottom[8]; newState.left[3] = newState.bottom[7]; newState.left[0] = newState.bottom[6];
+                    newState.bottom[8] = newState.right[2]; newState.bottom[7] = newState.right[5]; newState.bottom[6] = newState.right[8];
+                    newState.right[2] = tempRow[0]; newState.right[5] = tempRow[1]; newState.right[8] = tempRow[2];
+                    break;
             }
-            // In a real scenario, this function would return the new state
+            // Update the state that was passed in
+            Object.assign(state, newState);
         }
 
-        // Helper to find the location of an edge piece
+        // Helper to apply a sequence of moves to a given cube state and return the steps
+        function applyMoveSequence(state, moves, simpleText, detailedText) {
+            const steps = [];
+            for (const move of moves.split(' ')) {
+                if (move) {
+                    applyMoveToState(state, move);
+                    steps.push({ simpleText, detailedText: `Perform move: ${move}`, move });
+                }
+            }
+            return steps;
+        }
+
+        function getAdjacentFace(face, index) {
+            const adjacencies = {
+                top: { 0: { f: 'back', i: 1 }, 1: { f: 'back', i: 0 }, 2: { f: 'right', i: 1 }, 3: { f: 'back', i: 2 }, 5: { f: 'front', i: 0 }, 6: { f: 'left', i: 1 }, 7: { f: 'front', i: 1 }, 8: { f: 'front', i: 2 } },
+                bottom: { 0: { f: 'front', i: 7 }, 1: { f: 'front', i: 8 }, 2: { f: 'right', i: 7 }, 3: { f: 'front', i: 6 }, 5: { f: 'back', i: 8 }, 6: { f: 'left', i: 7 }, 7: { f: 'back', i: 7 }, 8: { f: 'back', i: 6 } },
+                front: { 0: { f: 'top', i: 7 }, 1: { f: 'top', i: 8 }, 2: { f: 'right', i: 0 }, 3: { f: 'top', i: 6 }, 5: { f: 'bottom', i: 2 }, 6: { f: 'left', i: 2 }, 7: { f: 'bottom', i: 1 }, 8: { f: 'bottom', i: 0 } },
+                back: { 0: { f: 'top', i: 1 }, 1: { f: 'top', i: 0 }, 2: { f: 'left', i: 0 }, 3: { f: 'top', i: 2 }, 5: { f: 'bottom', i: 8 }, 6: { f: 'right', i: 2 }, 7: { f: 'bottom', i: 7 }, 8: { f: 'bottom', i: 6 } },
+                left: { 0: { f: 'top', i: 3 }, 1: { f: 'top', i: 0 }, 2: { f: 'front', i: 0 }, 3: { f: 'top', i: 6 }, 5: { f: 'bottom', i: 0 }, 6: { f: 'back', i: 2 }, 7: { f: 'bottom', i: 3 }, 8: { f: 'bottom', i: 6 } },
+                right: { 0: { f: 'top', i: 5 }, 1: { f: 'top', i: 2 }, 2: { f: 'back', i: 0 }, 3: { f: 'top', i: 8 }, 5: { f: 'bottom', i: 2 }, 6: { f: 'front', i: 2 }, 7: { f: 'bottom', i: 5 }, 8: { f: 'bottom', i: 8 } }
+            };
+            return { face: adjacencies[face][index].f, index: adjacencies[face][index].i };
+        }
+
         function findEdge(state, color1, color2) {
-            const faceNames = Object.keys(state);
-            for (const face of faceNames) {
+            for (const face of FACES) {
                 for (const index of [1, 3, 5, 7]) {
-                    const stickerColor = state[face][index];
-                    if (stickerColor === color1 || stickerColor === color2) {
-                        const adjacentFace = getAdjacentFace(face, index);
-                        const adjacentFaceName = adjacentFace.face;
-                        const adjacentIndex = adjacentFace.index;
-                        const adjacentColor = state[adjacentFaceName][adjacentIndex];
-                        if ((stickerColor === color1 && adjacentColor === color2) || (stickerColor === color2 && adjacentColor === color1)) {
-                            return { face, index };
-                        }
+                    const stickerColor1 = state[face][index];
+                    const adjacent = getAdjacentFace(face, index);
+                    const stickerColor2 = state[adjacent.face][adjacent.index];
+                    if ((stickerColor1 === color1 && stickerColor2 === color2) || (stickerColor1 === color2 && stickerColor2 === color1)) {
+                        return { face1: face, index1: index, face2: adjacent.face, index2: adjacent.index };
+                    }
+                }
+            }
+            return null;
+        }
+
+        function findCorner(state, color1, color2, color3) {
+            for (const face of FACES) {
+                for (const index of [0, 2, 6, 8]) {
+                    const stickerColor1 = state[face][index];
+                    const adj1 = getAdjacentFace(face, index);
+                    const adj2 = getAdjacentFace(face, (index + 2) % 8); // Simplified adjacency
+                    const stickerColor2 = state[adj1.face][adj1.index];
+                    const stickerColor3 = state[adj2.face][adj2.index];
+                    const colorSet = new Set([stickerColor1, stickerColor2, stickerColor3]);
+                    if (colorSet.has(color1) && colorSet.has(color2) && colorSet.has(color3)) {
+                        return { face1: face, index1: index, face2: adj1.face, index2: adj1.index, face3: adj2.face, index3: adj2.index };
                     }
                 }
             }
@@ -655,191 +774,102 @@
         function solveWhiteCross(state) {
             const steps = [];
             const edgesToSolve = [
-                { color1: 'white', color2: 'green', targetFace: 'top', targetIndex: 7, adjacentFace: 'front' },
-                { color1: 'white', color2: 'red', targetFace: 'top', targetIndex: 5, adjacentFace: 'right' },
-                { color1: 'white', color2: 'blue', targetFace: 'top', targetIndex: 1, adjacentFace: 'back' },
-                { color1: 'white', color2: 'orange', targetFace: 'top', targetIndex: 3, adjacentFace: 'left' }
+                { colors: ['white', 'green'], target: 'front' },
+                { colors: ['white', 'red'], target: 'right' },
+                { colors: ['white', 'blue'], target: 'back' },
+                { colors: ['white', 'orange'], target: 'left' }
             ];
 
-            steps.push({
-                simpleText: "Step 1: Solve the White Cross",
-                detailedText: "First, we will solve the white cross on the top face.",
-                move: null
-            });
-
             for (const edge of edgesToSolve) {
-                // This is still a placeholder. A full implementation would need to:
-                // 1. Find the actual location of the edge piece (e.g., { face: 'front', index: 7 }).
-                // 2. Determine the sequence of moves to get it to the bottom layer.
-                // 3. Determine the moves to align it under its target position.
-                // 4. Move it into the top layer.
-                steps.push({
-                    simpleText: `Solving the ${edge.color1}-${edge.color2} edge.`,
-                    detailedText: `Looking for the ${edge.color1}-${edge.color2} piece and moving it to the top.`,
-                    move: "F R U" // Placeholder move
-                });
-            }
+                let location = findEdge(state, edge.colors[0], edge.colors[1]);
 
-            return steps;
-        }
-
-        function getAdjacentFace(face, index) {
-            // This function returns the face and index of the sticker adjacent to the given sticker
-            const adjacencies = {
-                'top': { 0: { f: 'back', i: 2 }, 1: { f: 'back', i: 1 }, 2: { f: 'back', i: 0 }, 3: { f: 'left', i: 1 }, 5: { f: 'right', i: 1 }, 6: { f: 'front', i: 2 }, 7: { f: 'front', i: 1 }, 8: { f: 'front', i: 0 } },
-                'bottom': { 0: { f: 'front', i: 6 }, 1: { f: 'front', i: 7 }, 2: { f: 'front', i: 8 }, 3: { f: 'left', i: 7 }, 5: { f: 'right', i: 7 }, 6: { f: 'back', i: 8 }, 7: { f: 'back', i: 7 }, 8: { f: 'back', i: 6 } },
-                'front': { 0: { f: 'top', i: 8 }, 1: { f: 'top', i: 7 }, 2: { f: 'top', i: 6 }, 3: { f: 'left', i: 5 }, 5: { f: 'right', i: 3 }, 6: { f: 'bottom', i: 2 }, 7: { f: 'bottom', i: 1 }, 8: { f: 'bottom', i: 0 } },
-                'back': { 0: { f: 'top', i: 2 }, 1: { f: 'top', i: 1 }, 2: { f: 'top', i: 0 }, 3: { f: 'right', i: 5 }, 5: { f: 'left', i: 3 }, 6: { f: 'bottom', i: 8 }, 7: { f: 'bottom', i: 7 }, 8: { f: 'bottom', i: 6 } },
-                'left': { 0: { f: 'top', i: 0 }, 1: { f: 'top', i: 3 }, 2: { f: 'top', i: 6 }, 3: { f: 'back', i: 5 }, 5: { f: 'front', i: 3 }, 6: { f: 'bottom', i: 0 }, 7: { f: 'bottom', i: 3 }, 8: { f: 'bottom', i: 6 } },
-                'right': { 0: { f: 'top', i: 6 }, 1: { f: 'top', i: 5 }, 2: { f: 'top', i: 2 }, 3: { f: 'front', i: 5 }, 5: { f: 'back', i: 3 }, 6: { f: 'bottom', i: 6 }, 7: { f: 'bottom', i: 5 }, 8: { f: 'bottom', i: 2 } }
-            };
-            return { face: adjacencies[face][index].f, index: adjacencies[face][index].i };
-        }
-
-        function findCorner(state, color1, color2, color3) {
-            const faceNames = Object.keys(state);
-            for (const face of faceNames) {
-                for (const index of [0, 2, 6, 8]) {
-                    const stickerColor = state[face][index];
-                    if (stickerColor === color1 || stickerColor === color2 || stickerColor === color3) {
-                        const adj1 = getAdjacentFace(face, index);
-                        const adj2 = getAdjacentFace(adj1.face, adj1.index);
-                        const colorSet = new Set([stickerColor, state[adj1.face][adj1.index], state[adj2.face][adj2.index]]);
-                        if (colorSet.has(color1) && colorSet.has(color2) && colorSet.has(color3)) {
-                            return { face, index };
-                        }
-                    }
+                // This is a simplified logic, a full implementation would be more complex
+                if (location.face1 === 'top') {
+                    // Already on the top face, might need to be flipped or moved
+                } else if (location.face1 === 'bottom') {
+                    // Move to be under the target face, then move up
+                    const moves = "F F";
+                    steps.push(...applyMoveSequence(state, moves, `Move ${edge.colors[1]} edge up`, `Align and move the ${edge.colors[1]} edge.`));
+                } else {
+                    // It's in the middle layer, bring it down then up
+                    const moves = "R U R'";
+                    steps.push(...applyMoveSequence(state, moves, `Position ${edge.colors[1]} edge`, `Positioning the ${edge.colors[1]} edge.`));
                 }
             }
-            return null;
+            return steps;
         }
 
         function solveWhiteCorners(state) {
             const steps = [];
-            steps.push({
-                simpleText: "Step 2: Solve the White Corners",
-                detailedText: "Now, we will solve the white corners.",
-                move: null
-            });
-
             const cornersToSolve = [
-                { colors: ['white', 'green', 'orange'], position: ['top', 'front', 'left'] },
-                { colors: ['white', 'green', 'red'], position: ['top', 'front', 'right'] },
-                { colors: ['white', 'blue', 'orange'], position: ['top', 'back', 'left'] },
-                { colors: ['white', 'blue', 'red'], position: ['top', 'back', 'right'] }
+                { colors: ['white', 'green', 'orange'], pos: ['top', 'front', 'left'] },
+                { colors: ['white', 'green', 'red'], pos: ['top', 'front', 'right'] },
+                { colors: ['white', 'blue', 'orange'], pos: ['top', 'back', 'left'] },
+                { colors: ['white', 'blue', 'red'], pos: ['top', 'back', 'right'] }
             ];
 
             for (const corner of cornersToSolve) {
-                // Placeholder for the logic to solve each corner
-                steps.push({
-                    simpleText: `Solving the ${corner.colors.join('-')} corner.`,
-                    detailedText: `Moving the ${corner.colors.join('-')} corner into place.`,
-                    move: "R U R' U'" // Placeholder move
-                });
+                let location = findCorner(state, ...corner.colors);
+                // Simplified logic
+                if (location.face1 !== 'top') {
+                    const moves = "R U R'";
+                    steps.push(...applyMoveSequence(state, moves, `Position ${corner.colors[1]}/${corner.colors[2]} corner`, `Positioning the corner.`));
+                }
             }
-
             return steps;
         }
 
         function solveMiddleLayer(state) {
             const steps = [];
-            steps.push({
-                simpleText: "Step 3: Solve the Middle Layer",
-                detailedText: "Next, we solve the middle layer by inserting the four edge pieces.",
-                move: null
-            });
-
             const edgesToSolve = [
-                { colors: ['green', 'orange'], position: ['front', 'left'] },
-                { colors: ['green', 'red'], position: ['front', 'right'] },
-                { colors: ['blue', 'orange'], position: ['back', 'left'] },
-                { colors: ['blue', 'red'], position: ['back', 'right'] }
+                { colors: ['green', 'orange'], pos: ['front', 'left'] },
+                { colors: ['green', 'red'], pos: ['front', 'right'] },
+                { colors: ['blue', 'orange'], pos: ['back', 'left'] },
+                { colors: ['blue', 'red'], pos: ['back', 'right'] }
             ];
 
             for (const edge of edgesToSolve) {
-                // Placeholder for the logic to solve each middle layer edge
-                steps.push({
-                    simpleText: `Solving the ${edge.colors.join('-')} edge.`,
-                    detailedText: `Moving the ${edge.colors.join('-')} edge into place.`,
-                    move: "U R U' R' U' F' U F" // Placeholder move
-                });
+                let location = findEdge(state, edge.colors[0], edge.colors[1]);
+                // Simplified logic
+                const moves = "U R U' R' U' F' U F";
+                steps.push(...applyMoveSequence(state, moves, `Insert ${edge.colors[0]}/${edge.colors[1]} edge`, `Inserting edge into middle layer.`));
             }
-
-            return steps;
-        }
-
-        function orientLastLayerCorners(state) {
-            const steps = [];
-            steps.push({
-                simpleText: "Step 7: Orient Last Layer Corners",
-                detailedText: "Finally, we'll orient the yellow corners to solve the cube.",
-                move: null
-            });
-
-            // Placeholder for the logic to check the yellow corner orientation and apply the algorithm
-            steps.push({
-                simpleText: "Orienting the yellow corners.",
-                detailedText: "Applying the algorithm R' D' R D to orient the corners.",
-                move: "R' D' R D" // Placeholder move
-            });
-
-            return steps;
-        }
-
-        function permuteLastLayerCorners(state) {
-            const steps = [];
-            steps.push({
-                simpleText: "Step 6: Permute Last Layer Corners",
-                detailedText: "Next, we'll position the yellow corners correctly.",
-                move: null
-            });
-
-            // Placeholder for the logic to check the yellow corner permutation and apply the algorithm
-            steps.push({
-                simpleText: "Permuting the yellow corners.",
-                detailedText: "Applying the algorithm U R U' L' U R' U' L to permute the corners.",
-                move: "U R U' L' U R' U' L" // Placeholder move
-            });
-
-            return steps;
-        }
-
-        function permuteLastLayerEdges(state) {
-            const steps = [];
-            steps.push({
-                simpleText: "Step 5: Permute Last Layer Edges",
-                detailedText: "Now we'll arrange the yellow edges to match their side colors.",
-                move: null
-            });
-
-            // Placeholder for the logic to check the yellow edge permutation and apply the algorithm
-            steps.push({
-                simpleText: "Permuting the yellow edges.",
-                detailedText: "Applying the algorithm R U R' U R U2 R' to permute the edges.",
-                move: "R U R' U R U2 R'" // Placeholder move
-            });
-
             return steps;
         }
 
         function solveYellowCross(state) {
             const steps = [];
-            steps.push({
-                simpleText: "Step 4: Create the Yellow Cross",
-                detailedText: "Now we'll form a yellow cross on the bottom face.",
-                move: null
-            });
-
-            // Placeholder for the logic to check the yellow cross state and apply the algorithm
-            steps.push({
-                simpleText: "Forming the yellow cross.",
-                detailedText: "Applying the algorithm F R U R' U' F' to get a yellow cross.",
-                move: "F R U R' U' F'" // Placeholder move
-            });
-
+            // Simplified logic: assumes one of the cases and applies the algorithm.
+            const moves = "F R U R' U' F'";
+            steps.push(...applyMoveSequence(state, moves, `Form yellow cross`, `Forming the yellow cross.`));
             return steps;
         }
 
+        function permuteLastLayerEdges(state) {
+            const steps = [];
+            // Simplified logic
+            const moves = "R U R' U R U2 R'";
+            steps.push(...applyMoveSequence(state, moves, `Permute yellow edges`, `Permuting the yellow edges.`));
+            return steps;
+        }
+
+        function permuteLastLayerCorners(state) {
+            const steps = [];
+            // Simplified logic
+            const moves = "U R U' L' U R' U' L";
+            steps.push(...applyMoveSequence(state, moves, `Permute yellow corners`, `Permuting the yellow corners.`));
+            return steps;
+        }
+
+        function orientLastLayerCorners(state) {
+            const steps = [];
+            // Simplified logic
+            const moves = "R' D' R D R' D' R D";
+            steps.push(...applyMoveSequence(state, moves, `Orient yellow corners`, `Orienting the yellow corners.`));
+            return steps;
+        }
+
+        // --- Global UI Functions ---
 
         // Checks if the current cube state matches the solved state
         function isSolved() {
@@ -853,175 +883,9 @@
             return true;
         }
 
-        // This is the core move engine.
+        // This is the core move engine for the main UI
         function applyMove(move) {
-            // Deep copy to avoid mutation issues
-            const newState = JSON.parse(JSON.stringify(cubeState));
-            let tempRow, tempCol;
-
-            switch (move) {
-                case 'U': // Top face clockwise
-                    newState.top = rotateFaceClockwise(newState.top);
-                    tempRow = newState.front.slice(0, 3);
-                    newState.front.splice(0, 3, ...newState.right.slice(0, 3));
-                    newState.right.splice(0, 3, ...newState.back.slice(0, 3));
-                    newState.back.splice(0, 3, ...newState.left.slice(0, 3));
-                    newState.left.splice(0, 3, ...tempRow);
-                    break;
-                case 'U_prime': // Top face counter-clockwise
-                    newState.top = rotateFaceCounterClockwise(newState.top);
-                    tempRow = newState.front.slice(0, 3);
-                    newState.front.splice(0, 3, ...newState.left.slice(0, 3));
-                    newState.left.splice(0, 3, ...newState.back.slice(0, 3));
-                    newState.back.splice(0, 3, ...newState.right.slice(0, 3));
-                    newState.right.splice(0, 3, ...tempRow);
-                    break;
-                case 'D': // Bottom face clockwise
-                    newState.bottom = rotateFaceClockwise(newState.bottom);
-                    tempRow = newState.front.slice(6, 9);
-                    newState.front.splice(6, 3, ...newState.left.slice(6, 9));
-                    newState.left.splice(6, 3, ...newState.back.slice(6, 9));
-                    newState.back.splice(6, 3, ...newState.right.slice(6, 9));
-                    newState.right.splice(6, 3, ...tempRow);
-                    break;
-                case 'D_prime': // Bottom face counter-clockwise
-                    newState.bottom = rotateFaceCounterClockwise(newState.bottom);
-                    tempRow = newState.front.slice(6, 9);
-                    newState.front.splice(6, 3, ...newState.right.slice(6, 9));
-                    newState.right.splice(6, 3, ...newState.back.slice(6, 9));
-                    newState.back.splice(6, 3, ...newState.left.slice(6, 9));
-                    newState.left.splice(6, 3, ...tempRow);
-                    break;
-                case 'R': // Right face clockwise
-                    newState.right = rotateFaceClockwise(newState.right);
-                    tempCol = [newState.front[2], newState.front[5], newState.front[8]];
-                    newState.front[2] = newState.bottom[2];
-                    newState.front[5] = newState.bottom[5];
-                    newState.front[8] = newState.bottom[8];
-                    newState.bottom[2] = newState.back[6];
-                    newState.bottom[5] = newState.back[3];
-                    newState.bottom[8] = newState.back[0];
-                    newState.back[6] = newState.top[2];
-                    newState.back[3] = newState.top[5];
-                    newState.back[0] = newState.top[8];
-                    newState.top[2] = tempCol[0];
-                    newState.top[5] = tempCol[1];
-                    newState.top[8] = tempCol[2];
-                    break;
-                case 'R_prime': // Right face counter-clockwise
-                    newState.right = rotateFaceCounterClockwise(newState.right);
-                    tempCol = [newState.front[2], newState.front[5], newState.front[8]];
-                    newState.front[2] = newState.top[2];
-                    newState.front[5] = newState.top[5];
-                    newState.front[8] = newState.top[8];
-                    newState.top[2] = newState.back[6];
-                    newState.top[5] = newState.back[3];
-                    newState.top[8] = newState.back[0];
-                    newState.back[6] = newState.bottom[2];
-                    newState.back[3] = newState.bottom[5];
-                    newState.back[0] = newState.bottom[8];
-                    newState.bottom[2] = tempCol[0];
-                    newState.bottom[5] = tempCol[1];
-                    newState.bottom[8] = tempCol[2];
-                    break;
-                case 'L': // Left face clockwise
-                    newState.left = rotateFaceClockwise(newState.left);
-                    tempCol = [newState.front[0], newState.front[3], newState.front[6]];
-                    newState.front[0] = newState.top[0];
-                    newState.front[3] = newState.top[3];
-                    newState.front[6] = newState.top[6];
-                    newState.top[0] = newState.back[8];
-                    newState.top[3] = newState.back[5];
-                    newState.top[6] = newState.back[2];
-                    newState.back[8] = newState.bottom[0];
-                    newState.back[5] = newState.bottom[3];
-                    newState.back[2] = newState.bottom[6];
-                    newState.bottom[0] = tempCol[0];
-                    newState.bottom[3] = tempCol[1];
-                    newState.bottom[6] = tempCol[2];
-                    break;
-                case 'L_prime': // Left face counter-clockwise
-                    newState.left = rotateFaceCounterClockwise(newState.left);
-                    tempCol = [newState.front[0], newState.front[3], newState.front[6]];
-                    newState.front[0] = newState.bottom[0];
-                    newState.front[3] = newState.bottom[3];
-                    newState.front[6] = newState.bottom[6];
-                    newState.bottom[0] = newState.back[8];
-                    newState.bottom[3] = newState.back[5];
-                    newState.bottom[6] = newState.back[2];
-                    newState.back[8] = newState.top[0];
-                    newState.back[5] = newState.top[3];
-                    newState.back[2] = newState.top[6];
-                    newState.top[0] = tempCol[0];
-                    newState.top[3] = tempCol[1];
-                    newState.top[6] = tempCol[2];
-                    break;
-                case 'F': // Front face clockwise
-                    newState.front = rotateFaceClockwise(newState.front);
-                    tempCol = [newState.top[6], newState.top[7], newState.top[8]];
-                    newState.top[6] = newState.left[8];
-                    newState.top[7] = newState.left[5];
-                    newState.top[8] = newState.left[2];
-                    newState.left[8] = newState.bottom[2];
-                    newState.left[5] = newState.bottom[1];
-                    newState.left[2] = newState.bottom[0];
-                    newState.bottom[2] = newState.right[0];
-                    newState.bottom[1] = newState.right[3];
-                    newState.bottom[0] = newState.right[6];
-                    newState.right[0] = tempCol[0];
-                    newState.right[3] = tempCol[1];
-                    newState.right[6] = tempCol[2];
-                    break;
-                case 'F_prime': // Front face counter-clockwise
-                    newState.front = rotateFaceCounterClockwise(newState.front);
-                    tempCol = [newState.top[6], newState.top[7], newState.top[8]];
-                    newState.top[6] = newState.right[0];
-                    newState.top[7] = newState.right[3];
-                    newState.top[8] = newState.right[6];
-                    newState.right[0] = newState.bottom[2];
-                    newState.right[3] = newState.bottom[1];
-                    newState.right[6] = newState.bottom[0];
-                    newState.bottom[2] = newState.left[8];
-                    newState.bottom[1] = newState.left[5];
-                    newState.bottom[0] = newState.left[2];
-                    newState.left[8] = tempCol[0];
-                    newState.left[5] = tempCol[1];
-                    newState.left[2] = tempCol[2];
-                    break;
-                case 'B': // Back face clockwise
-                    newState.back = rotateFaceClockwise(newState.back);
-                    tempCol = [newState.top[0], newState.top[1], newState.top[2]];
-                    newState.top[0] = newState.right[2];
-                    newState.top[1] = newState.right[5];
-                    newState.top[2] = newState.right[8];
-                    newState.right[2] = newState.bottom[8];
-                    newState.right[5] = newState.bottom[7];
-                    newState.right[8] = newState.bottom[6];
-                    newState.bottom[8] = newState.left[6];
-                    newState.bottom[7] = newState.left[3];
-                    newState.bottom[6] = newState.left[0];
-                    newState.left[6] = tempCol[0];
-                    newState.left[3] = tempCol[1];
-                    newState.left[0] = tempCol[2];
-                    break;
-                case 'B_prime': // Back face counter-clockwise
-                    newState.back = rotateFaceCounterClockwise(newState.back);
-                    tempCol = [newState.top[0], newState.top[1], newState.top[2]];
-                    newState.top[0] = newState.left[6];
-                    newState.top[1] = newState.left[3];
-                    newState.top[2] = newState.left[0];
-                    newState.left[6] = newState.bottom[8];
-                    newState.left[3] = newState.bottom[7];
-                    newState.left[0] = newState.bottom[6];
-                    newState.bottom[8] = newState.right[2];
-                    newState.bottom[7] = newState.right[5];
-                    newState.bottom[6] = newState.right[8];
-                    newState.right[2] = tempCol[0];
-                    newState.right[5] = tempCol[1];
-                    newState.right[8] = tempCol[2];
-                    break;
-            }
-            cubeState = newState;
+            applyMoveToState(cubeState, move);
         }
 
         function rotateFaceClockwise(face) {
