@@ -590,7 +590,6 @@
             resetCubeState(); // Start from a solved state
 
             // Generate a random scramble of SCRAMBLE_LENGTH moves
-            const tempCubeState = JSON.parse(JSON.stringify(cubeState));
             const scrambleMoves = [];
             for (let i = 0; i < SCRAMBLE_LENGTH; i++) {
                 const randomMove = ALL_MOVES[Math.floor(Math.random() * ALL_MOVES.length)];
@@ -598,6 +597,7 @@
                 applyMove(randomMove);
             }
 
+            // Directly call startSolving, which will now see the scrambled state
             updateCubeDisplay();
             startSolving();
         }
