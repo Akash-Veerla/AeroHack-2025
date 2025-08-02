@@ -607,26 +607,365 @@
 
         // --- Core Solving Algorithm Logic ---
         function generateSolution() {
-            // This is a simplified educational guide for the first few steps of solving.
             let solutionSteps = [];
-            solutionSteps.push({
-                simpleText: "Step 1: Solve the White Cross.",
-                detailedText: "The first step is to create a white cross on the top face, with each edge piece matching its adjacent center piece. Use F, R, U, D moves to move the white edges into position.",
-                move: null
-            });
-            solutionSteps.push({
-                simpleText: "Step 2: Solve the White Corners.",
-                detailedText: "Next, we solve the white corners. Find each white corner piece and use the F, R, U, D moves to move them into their correct positions on the top layer.",
-                move: null
-            });
-            solutionSteps.push({
-                simpleText: "Step 3: Solve the Middle Layer.",
-                detailedText: "The middle layer is solved by placing the four edge pieces into their correct spots. Look for an edge piece on the bottom layer that doesn't have yellow, and move it to its correct position.",
-                move: null
-            });
+            let tempCubeState = JSON.parse(JSON.stringify(cubeState));
+
+            // Chain the solver functions, passing the temporary state through each one
+            tempCubeState = solveWhiteCross(solutionSteps, tempCubeState);
+            tempCubeState = solveWhiteCorners(solutionSteps, tempCubeState);
+            tempCubeState = solveMiddleLayer(solutionSteps, tempCubeState);
+            tempCubeState = solveYellowCross(solutionSteps, tempCubeState);
+            tempCubeState = positionLastLayerEdges(solutionSteps, tempCubeState);
+            tempCubeState = positionLastLayerCorners(solutionSteps, tempCubeState);
+            tempCubeState = orientLastLayerCorners(solutionSteps, tempCubeState);
+
+            if (solutionSteps.length === 0) {
+                solutionSteps.push({ simpleText: "The cube is already solved!", detailedText: "", move: null });
+            }
+
             return solutionSteps;
         }
 
+        // Applies a sequence of moves to a temporary state and records the steps
+        function applyMovesToTempState(sequence, steps, simpleText, detailedText, tempState) {
+            const moves = sequence.split(' ').filter(m => m !== '');
+            let newTempState = tempState;
+            for (const move of moves) {
+                steps.push({ simpleText, detailedText, move });
+                newTempState = getNextState(newTempState, move);
+            }
+            return newTempState;
+        }
+
+        // Helper function to find an edge piece in a given cube state
+        function findEdge(cube, color1, color2) {
+            const edgePositions = [
+                { name: 'UB', faces: ['top', 'back'], indices: [1, 1] }, { name: 'UL', faces: ['top', 'left'], indices: [3, 1] },
+                { name: 'UR', faces: ['top', 'right'], indices: [5, 1] }, { name: 'UF', faces: ['top', 'front'], indices: [7, 1] },
+                { name: 'FL', faces: ['front', 'left'], indices: [3, 5] }, { name: 'FR', faces: ['front', 'right'], indices: [5, 3] },
+                { name: 'BL', faces: ['back', 'left'], indices: [5, 3] }, { name: 'BR', faces: ['back', 'right'], indices: [3, 5] },
+                { name: 'DF', faces: ['bottom', 'front'], indices: [1, 7] }, { name: 'DL', faces: ['bottom', 'left'], indices: [3, 7] },
+                { name: 'DR', faces: ['bottom', 'right'], indices: [5, 7] }, { name: 'DB', faces: ['bottom', 'back'], indices: [7, 7] },
+            ];
+            for (const pos of edgePositions) {
+                const c1 = cube[pos.faces[0]][pos.indices[0]];
+                const c2 = cube[pos.faces[1]][pos.indices[1]];
+                if ((c1 === color1 && c2 === color2) || (c1 === color2 && c2 === color1)) {
+                    return { pos: pos, colorOnFace1: c1, colorOnFace2: c2 };
+                }
+            }
+            return null;
+        }
+
+        // --- Stage 1: White Cross ---
+        function solveWhiteCross(steps, initialCubeState) {
+            let tempState = JSON.parse(JSON.stringify(initialCubeState));
+            steps.push({ simpleText: "Step 1: Solve the White Cross", detailedText: "We will now solve the white cross on the top face...", move: null });
+
+            const edgesToSolve = [
+                { colors: ['white', 'green'], targetFace: 'front' }, { colors: ['white', 'red'], targetFace: 'right' },
+                { colors: ['white', 'blue'], targetFace: 'back' }, { colors: ['white', 'orange'], targetFace: 'left' }
+            ];
+            const faceToMove = { front: 'F', right: 'R', back: 'B', left: 'L' };
+            const faceOrder = ['front', 'right', 'back', 'left'];
+
+            for (const edge of edgesToSolve) {
+                for (let i = 0; i < 10; i++) {
+                    const edgeLocation = findEdge(tempState, ...edge.colors);
+                    const { pos, colorOnFace1 } = edgeLocation;
+
+                    if (pos.faces.includes('top') && pos.faces.includes(edge.targetFace) && tempState.top[pos.indices[0]] === 'white') break;
+
+                    if (pos.faces.includes('top')) {
+                        const move = faceToMove[pos.faces[1]];
+                        tempState = applyMovesToTempState(move, steps, `Move ${edge.colors.join('-')} out of top layer`, `...`, tempState);
+                        continue;
+                    }
+                    if (['FL', 'FR', 'BL', 'BR'].includes(pos.name)) {
+                        const move = pos.name.includes('R') ? 'R' : 'L';
+                        tempState = applyMovesToTempState(getInverseMove(move), steps, `Move ${edge.colors.join('-')} from middle layer`, `...`, tempState);
+                        continue;
+                    }
+                    if (pos.faces.includes('bottom')) {
+                        const whiteOnBottom = (pos.faces[0] === 'bottom' && colorOnFace1 === 'white') || (pos.faces[1] === 'bottom' && colorOnFace1 !== 'white');
+                        if (whiteOnBottom) {
+                            const sideColor = colorOnFace1 === 'white' ? edgeLocation.colorOnFace2 : colorOnFace1;
+                            const targetCenterFace = edgesToSolve.find(e => e.colors.includes(sideColor)).targetFace;
+                            const currentSideFace = pos.faces[1];
+                            const targetIdx = faceOrder.indexOf(targetCenterFace);
+                            const currentIdx = faceOrder.indexOf(currentSideFace);
+                            let diff = (targetIdx - currentIdx + 4) % 4;
+                            let moves = ['', 'D', 'D D', 'D_prime'][diff];
+                            if (moves) tempState = applyMovesToTempState(moves, steps, `Align ${edge.colors.join('-')} edge`, `...`, tempState);
+                            const finalMove = `${faceToMove[targetCenterFace]} ${faceToMove[targetCenterFace]}`;
+                            tempState = applyMovesToTempState(finalMove, steps, `Insert ${edge.colors.join('-')} edge`, `...`, tempState);
+                        } else {
+                            const targetIdx = faceOrder.indexOf(edge.targetFace);
+                            const currentIdx = faceOrder.indexOf(pos.faces[1]);
+                            let diff = (targetIdx - currentIdx + 4) % 4;
+                            let moves = ['', 'D', 'D D', 'D_prime'][diff];
+                            if (moves) tempState = applyMovesToTempState(moves, steps, `Position ${edge.colors.join('-')} for insertion`, `...`, tempState);
+                            const face = faceToMove[edge.targetFace];
+                            const rightFace = faceToMove[faceOrder[(targetIdx + 1) % 4]];
+                            const insertionAlg = `${getInverseMove(face)} ${getInverseMove(rightFace)} ${face}`;
+                            tempState = applyMovesToTempState(insertionAlg, steps, `Insert ${edge.colors.join('-')} edge`, `...`, tempState);
+                        }
+                        break;
+                    }
+                }
+            }
+            return tempState;
+        }
+
+        function findCorner(cube, c1, c2, c3) {
+            const cornerPositions = [
+                { name: 'UBL', faces: ['top', 'back', 'left'], indices: [0, 2, 0] }, { name: 'UBR', faces: ['top', 'back', 'right'], indices: [2, 0, 2] },
+                { name: 'UFL', faces: ['top', 'front', 'left'], indices: [6, 0, 2] }, { name: 'UFR', faces: ['top', 'front', 'right'], indices: [8, 2, 0] },
+                { name: 'DBL', faces: ['bottom', 'back', 'left'], indices: [6, 8, 6] }, { name: 'DBR', faces: ['bottom', 'back', 'right'], indices: [8, 6, 8] },
+                { name: 'DFL', faces: ['bottom', 'front', 'left'], indices: [0, 6, 8] }, { name: 'DFR', faces: ['bottom', 'front', 'right'], indices: [2, 8, 6] },
+            ];
+            for (const pos of cornerPositions) {
+                const c = [cube[pos.faces[0]][pos.indices[0]], cube[pos.faces[1]][pos.indices[1]], cube[pos.faces[2]][pos.indices[2]]];
+                if (c.includes(c1) && c.includes(c2) && c.includes(c3)) return { pos: pos, colors: c };
+            }
+            return null;
+        }
+
+        // --- Stage 2: White Corners ---
+        function solveWhiteCorners(steps, initialCubeState) {
+            let tempState = JSON.parse(JSON.stringify(initialCubeState));
+            steps.push({ simpleText: "Step 2: Solve the White Corners", detailedText: "With the cross solved, we will now insert the four white corner pieces...", move: null });
+
+            const cornersToSolve = [
+                { colors: ['white', 'green', 'orange'], targetPos: 'UFL' }, { colors: ['white', 'green', 'red'], targetPos: 'UFR' },
+                { colors: ['white', 'blue', 'orange'], targetPos: 'UBL' }, { colors: ['white', 'blue', 'red'], targetPos: 'UBR' },
+            ];
+            const posMap = { DFL: 0, DFR: 1, DBR: 2, DBL: 3 };
+
+            for (const corner of cornersToSolve) {
+                for (let i = 0; i < 6; i++) {
+                    const cornerLocation = findCorner(tempState, ...corner.colors);
+                    const { pos } = cornerLocation;
+                    if (pos.name === corner.targetPos && tempState.top[pos.indices[0]] === 'white') break;
+
+                    if (pos.name.startsWith('U')) {
+                        const move = pos.name.includes('R') ? 'R' : 'L';
+                        const sequence = `${getInverseMove(move)} D ${move}`;
+                        tempState = applyMovesToTempState(sequence, steps, `Bring ${corner.colors.join('-')} down`, `...`, tempState);
+                        continue;
+                    }
+                    if (pos.name.startsWith('D')) {
+                        const targetSlotName = 'D' + corner.targetPos.substring(1);
+                        const currentSlotName = pos.name;
+                        const diff = (posMap[targetSlotName] - posMap[currentSlotName] + 4) % 4;
+                        let dMoves = ['', 'D', 'D D', 'D_prime'][diff];
+                        if (dMoves) tempState = applyMovesToTempState(dMoves, steps, `Position ${corner.colors.join('-')} corner`, `...`, tempState);
+
+                        const targetFace = corner.targetPos.includes('R') ? 'R' : 'L';
+                        const sequence = `${getInverseMove(targetFace)} D_prime ${targetFace} D`;
+                        tempState = applyMovesToTempState(sequence, steps, `Insert ${corner.colors.join('-')} corner`, `...`, tempState);
+                    }
+                }
+            }
+            return tempState;
+        }
+
+        // --- Stage 3: Middle Layer ---
+        function solveMiddleLayer(steps, initialCubeState) {
+            let tempState = JSON.parse(JSON.stringify(initialCubeState));
+            steps.push({ simpleText: "Step 3: Solve the Middle Layer", detailedText: "Next, we'll solve the middle layer by inserting the four edge pieces...", move: null });
+            const middleEdges = [
+                { colors: ['green', 'red'], home: 'FR' }, { colors: ['green', 'orange'], home: 'FL' },
+                { colors: ['blue', 'red'], home: 'BR' }, { colors: ['blue', 'orange'], home: 'BL' }
+            ];
+            const faceOrder = ['front', 'right', 'back', 'left'];
+
+            for (let i = 0; i < 5; i++) {
+                const solvedEdges = middleEdges.filter(edge => {
+                    const loc = findEdge(tempState, ...edge.colors);
+                    return loc && loc.pos.name === edge.home;
+                });
+                if (solvedEdges.length === 4) break;
+
+                let edgeToInsert = null;
+                const bottomEdges = ['DF', 'DL', 'DR', 'DB'];
+                for (const posName of bottomEdges) {
+                    const edgeData = findEdge(tempState, tempState.bottom[posName === 'DF' ? 1 : posName === 'DL' ? 3 : posName === 'DR' ? 5 : 7], tempState[posName.charAt(1).toLowerCase() + 'ace'][7]);
+                    if (edgeData && !edgeData.colorOnFace1.includes('yellow') && !edgeData.colorOnFace2.includes('yellow')) {
+                        const middleEdge = middleEdges.find(me => me.colors.includes(edgeData.colorOnFace1) && me.colors.includes(edgeData.colorOnFace2));
+                        if(findEdge(tempState, ...middleEdge.colors).pos.name !== middleEdge.home) {
+                            edgeToInsert = edgeData;
+                            break;
+                        }
+                    }
+                }
+
+                if (edgeToInsert) {
+                    const sideColor = edgeToInsert.pos.faces[0] === 'bottom' ? edgeToInsert.colorOnFace2 : edgeToInsert.colorOnFace1;
+                    const bottomColor = edgeToInsert.pos.faces[0] === 'bottom' ? edgeToInsert.colorOnFace1 : edgeToInsert.colorOnFace2;
+                    const alignToFace = Object.keys(solvedCubeState).find(f => solvedCubeState[f][4] === sideColor);
+                    const currentFace = edgeToInsert.pos.faces[1];
+                    const targetIdx = faceOrder.indexOf(alignToFace);
+                    const currentIdx = faceOrder.indexOf(currentFace);
+                    let diff = (targetIdx - currentIdx + 4) % 4;
+                    let dMoves = ['', 'D', 'D D', 'D_prime'][diff];
+                    if (dMoves) tempState = applyMovesToTempState(dMoves, steps, `Align ${sideColor}-${bottomColor} edge`, `...`, tempState);
+
+                    const destColor = bottomColor;
+                    const rightFace = faceOrder[(faceOrder.indexOf(alignToFace) + 1) % 4];
+                    const moves = solvedCubeState[rightFace][4] === destColor ? `D R D' R' D' F' D F` : `D' L' D L D F D' F'`;
+                    tempState = applyMovesToTempState(moves, steps, `Insert ${sideColor}-${destColor} into middle layer`, `...`, tempState);
+                } else {
+                    let wrongEdge = middleEdges.map(edge => findEdge(tempState, ...edge.colors)).find(loc => loc.pos.name !== middleEdges.find(me => me.colors.includes(loc.colorOnFace1) && me.colors.includes(loc.colorOnFace2)).home);
+                    if (wrongEdge) {
+                        const moves = `D R D' R' D' F' D F`; // Just use right-insert to displace
+                        tempState = applyMovesToTempState(moves, steps, `Displace ${wrongEdge.colorOnFace1}-${wrongEdge.colorOnFace2} edge`, `...`, tempState);
+                    }
+                }
+            }
+            return tempState;
+        }
+
+        // --- Stage 4: Yellow Cross ---
+        function solveYellowCross(steps, initialCubeState) {
+            let tempState = JSON.parse(JSON.stringify(initialCubeState));
+            steps.push({ simpleText: "Step 4: Create the Yellow Cross", detailedText: "Now, we will form a cross on the yellow face...", move: null });
+            const algLine = "F R D R' D' F'";
+            const algL = "F D R D' R' F'";
+
+            for (let i = 0; i < 4; i++) {
+                const yellowEdges = {
+                    front: tempState.bottom[1] === 'yellow', left: tempState.bottom[3] === 'yellow',
+                    right: tempState.bottom[5] === 'yellow', back: tempState.bottom[7] === 'yellow',
+                };
+                const count = Object.values(yellowEdges).filter(Boolean).length;
+                if (count === 4) break;
+
+                if (count === 0) {
+                    tempState = applyMovesToTempState(algLine, steps, "Making the cross (from dot)", "...", tempState);
+                } else if (count === 2) {
+                    const isLine = (yellowEdges.front && yellowEdges.back) || (yellowEdges.left && yellowEdges.right);
+                    if (isLine) {
+                        if (yellowEdges.front && yellowEdges.back) tempState = applyMovesToTempState("D", steps, "Orienting the line", "...", tempState);
+                        tempState = applyMovesToTempState(algLine, steps, "Making the cross (from line)", "...", tempState);
+                    } else {
+                        let dMoves = '';
+                        if (yellowEdges.front && yellowEdges.right) dMoves = "D";
+                        else if (yellowEdges.front && yellowEdges.left) dMoves = "D D";
+                        else if (yellowEdges.back && yellowEdges.right) dMoves = "D_prime";
+                        if (dMoves) tempState = applyMovesToTempState(dMoves, steps, "Orienting the L-shape", "...", tempState);
+                        tempState = applyMovesToTempState(algL, steps, "Making the cross (from L-shape)", "...", tempState);
+                    }
+                }
+            }
+            return tempState;
+        }
+
+        // --- Stage 5: Position Last Layer Edges ---
+        function positionLastLayerEdges(steps, initialCubeState) {
+            let tempState = JSON.parse(JSON.stringify(initialCubeState));
+            steps.push({ simpleText: "Step 5: Position the Last Layer Edges", detailedText: "With the yellow cross formed, we will now position the yellow edges...", move: null });
+            const alg = "R D R' D R D D R' D";
+
+            for (let i = 0; i < 4; i++) {
+                const solvedCount = ['front', 'right', 'back', 'left'].filter(f => tempState[f][7] === solvedCubeState[f][4]).length;
+                if (solvedCount >= 2) break;
+                tempState = applyMovesToTempState("D", steps, "Aligning cross", "...", tempState);
+            }
+
+            for (let i = 0; i < 3; i++) {
+                const solvedEdges = {
+                    front: tempState.front[7] === solvedCubeState.front[4], right: tempState.right[7] === solvedCubeState.right[4],
+                    back: tempState.back[7] === solvedCubeState.back[4], left: tempState.left[7] === solvedCubeState.left[4],
+                };
+                if (Object.values(solvedEdges).filter(Boolean).length === 4) break;
+                const isAdjacent = (solvedEdges.front && solvedEdges.right) || (solvedEdges.right && solvedEdges.back) || (solvedEdges.back && solvedEdges.left) || (solvedEdges.left && solvedEdges.front);
+                if (isAdjacent) {
+                    let setupMoves = '';
+                    if (solvedEdges.front && solvedEdges.left) setupMoves = "D";
+                    else if (solvedEdges.front && solvedEdges.right) setupMoves = "D D";
+                    else if (solvedEdges.right && solvedEdges.back) setupMoves = "D_prime";
+                    if (setupMoves) tempState = applyMovesToTempState(setupMoves, steps, "Orienting for edge permutation", "...", tempState);
+                    tempState = applyMovesToTempState(alg, steps, "Permuting adjacent edges", "...", tempState);
+                } else {
+                    if (solvedEdges.left && solvedEdges.right) tempState = applyMovesToTempState("D", steps, "Orienting opposite edges", "...", tempState);
+                    tempState = applyMovesToTempState(alg, steps, "Permuting opposite edges", "...", tempState);
+                }
+            }
+            return tempState;
+        }
+
+        // --- Stage 6: Position Last Layer Corners ---
+        function positionLastLayerCorners(steps, initialCubeState) {
+            let tempState = JSON.parse(JSON.stringify(initialCubeState));
+            steps.push({ simpleText: "Step 6: Position the Last Layer Corners", detailedText: "Next, we will move the corners to their correct positions...", move: null });
+            const alg = "D R D' L' D R' D' L";
+
+            for (let i = 0; i < 4; i++) {
+                const corners = { DBR: findCornerByPos(tempState, 'DBR'), DBL: findCornerByPos(tempState, 'DBL'), DFR: findCornerByPos(tempState, 'DFR'), DFL: findCornerByPos(tempState, 'DFL') };
+                const isCorrectlyPositioned = (cornerName) => {
+                    const targetColors = [solvedCubeState[corners[cornerName].pos.faces[0]][corners[cornerName].pos.indices[0]], solvedCubeState[corners[cornerName].pos.faces[1]][corners[cornerName].pos.indices[1]], solvedCubeState[corners[cornerName].pos.faces[2]][corners[cornerName].pos.indices[2]]];
+                    return targetColors.every(c => corners[cornerName].colors.includes(c));
+                };
+                const solvedCorners = Object.keys(corners).filter(isCorrectlyPositioned);
+                if (solvedCorners.length === 4) break;
+                if (solvedCorners.length === 1) {
+                    const solvedCornerName = solvedCorners[0];
+                    let setupMoves = '';
+                    if (solvedCornerName === 'DFL') setupMoves = 'D';
+                    else if (solvedCornerName === 'DFR') setupMoves = 'D D';
+                    else if (solvedCornerName === 'DBL') setupMoves = "D_prime";
+                    if (setupMoves) tempState = applyMovesToTempState(setupMoves, steps, "Orienting for corner permutation", "...", tempState);
+                    tempState = applyMovesToTempState(alg, steps, "Permuting three corners", "...", tempState);
+                } else {
+                    tempState = applyMovesToTempState(alg, steps, "Permuting corners", "...", tempState);
+                }
+            }
+            return tempState;
+        }
+
+        function findCornerByPos(cube, cornerName) {
+            const cornerPositions = [
+                { name: 'UBL', faces: ['top', 'back', 'left'], indices: [0, 2, 0] }, { name: 'UBR', faces: ['top', 'back', 'right'], indices: [2, 0, 2] },
+                { name: 'UFL', faces: ['top', 'front', 'left'], indices: [6, 0, 2] }, { name: 'UFR', faces: ['top', 'front', 'right'], indices: [8, 2, 0] },
+                { name: 'DBL', faces: ['bottom', 'back', 'left'], indices: [6, 8, 6] }, { name: 'DBR', faces: ['bottom', 'back', 'right'], indices: [8, 6, 8] },
+                { name: 'DFL', faces: ['bottom', 'front', 'left'], indices: [0, 6, 8] }, { name: 'DFR', faces: ['bottom', 'front', 'right'], indices: [2, 8, 6] },
+            ];
+            const pos = cornerPositions.find(p => p.name === cornerName);
+            if (!pos) return null;
+            const colors = [cube[pos.faces[0]][pos.indices[0]], cube[pos.faces[1]][pos.indices[1]], cube[pos.faces[2]][pos.indices[2]]];
+            return { pos, colors };
+        }
+
+        // --- Stage 7: Orient Last Layer Corners ---
+        function orientLastLayerCorners(steps, initialCubeState) {
+            let tempState = JSON.parse(JSON.stringify(initialCubeState));
+            steps.push({ simpleText: "Step 7: Orient the Last Layer Corners", detailedText: "Finally, we will orient the last layer corners to solve the cube...", move: null });
+            const alg = "R' D' R D";
+            const cornerPositions = ['DFR', 'DFL', 'DBL', 'DBR'];
+
+            for (const posName of cornerPositions) {
+                while (tempState.bottom[findCornerByPos(tempState, posName).pos.indices[0]] !== 'yellow') {
+                    tempState = applyMovesToTempState(alg, steps, `Orienting the ${posName} corner`, "...", tempState);
+                }
+                if (posName !== 'DBR') {
+                   tempState = applyMovesToTempState("D", steps, "Move to next corner", "...", tempState);
+                }
+            }
+
+            const faceOrder = ['front', 'right', 'back', 'left'];
+            const currentFrontColor = tempState.front[7];
+            const targetFrontColor = solvedCubeState.front[4];
+            const sideColors = faceOrder.map(f => solvedCubeState[f][4]);
+            const currentIdx = sideColors.indexOf(currentFrontColor);
+            const targetIdx = sideColors.indexOf(targetFrontColor);
+            let diff = (targetIdx - currentIdx + 4) % 4;
+            let dMoves = ['', 'D_prime', 'D D', 'D'][diff];
+            if (dMoves) {
+                tempState = applyMovesToTempState(dMoves, steps, "Final Alignment", "...", tempState);
+            }
+            return tempState;
+        }
 
         // Checks if the current cube state matches the solved state
         function isSolved() {
@@ -640,14 +979,12 @@
             return true;
         }
         
-        // This is the core move engine.
-        function applyMove(move) {
-            // Deep copy to avoid mutation issues
-            const newState = JSON.parse(JSON.stringify(cubeState));
+        // Returns a new state after applying a move, without mutating the original
+        function getNextState(currentState, move) {
+            const newState = JSON.parse(JSON.stringify(currentState));
             let tempRow, tempCol;
-            
             switch (move) {
-                case 'U': // Top face clockwise
+                case 'U':
                     newState.top = rotateFaceClockwise(newState.top);
                     tempRow = newState.front.slice(0, 3);
                     newState.front.splice(0, 3, ...newState.right.slice(0, 3));
@@ -655,7 +992,7 @@
                     newState.back.splice(0, 3, ...newState.left.slice(0, 3));
                     newState.left.splice(0, 3, ...tempRow);
                     break;
-                case 'U_prime': // Top face counter-clockwise
+                case 'U_prime':
                     newState.top = rotateFaceCounterClockwise(newState.top);
                     tempRow = newState.front.slice(0, 3);
                     newState.front.splice(0, 3, ...newState.left.slice(0, 3));
@@ -663,7 +1000,7 @@
                     newState.back.splice(0, 3, ...newState.right.slice(0, 3));
                     newState.right.splice(0, 3, ...tempRow);
                     break;
-                case 'D': // Bottom face clockwise
+                case 'D':
                     newState.bottom = rotateFaceClockwise(newState.bottom);
                     tempRow = newState.front.slice(6, 9);
                     newState.front.splice(6, 3, ...newState.left.slice(6, 9));
@@ -671,7 +1008,7 @@
                     newState.back.splice(6, 3, ...newState.right.slice(6, 9));
                     newState.right.splice(6, 3, ...tempRow);
                     break;
-                case 'D_prime': // Bottom face counter-clockwise
+                case 'D_prime':
                     newState.bottom = rotateFaceCounterClockwise(newState.bottom);
                     tempRow = newState.front.slice(6, 9);
                     newState.front.splice(6, 3, ...newState.right.slice(6, 9));
@@ -679,136 +1016,77 @@
                     newState.back.splice(6, 3, ...newState.left.slice(6, 9));
                     newState.left.splice(6, 3, ...tempRow);
                     break;
-                case 'R': // Right face clockwise
+                case 'R':
                     newState.right = rotateFaceClockwise(newState.right);
                     tempCol = [newState.front[2], newState.front[5], newState.front[8]];
-                    newState.front[2] = newState.bottom[2];
-                    newState.front[5] = newState.bottom[5];
-                    newState.front[8] = newState.bottom[8];
-                    newState.bottom[2] = newState.back[6];
-                    newState.bottom[5] = newState.back[3];
-                    newState.bottom[8] = newState.back[0];
-                    newState.back[6] = newState.top[2];
-                    newState.back[3] = newState.top[5];
-                    newState.back[0] = newState.top[8];
-                    newState.top[2] = tempCol[0];
-                    newState.top[5] = tempCol[1];
-                    newState.top[8] = tempCol[2];
+                    newState.front[2] = newState.bottom[2]; newState.front[5] = newState.bottom[5]; newState.front[8] = newState.bottom[8];
+                    newState.bottom[2] = newState.back[6]; newState.bottom[5] = newState.back[3]; newState.bottom[8] = newState.back[0];
+                    newState.back[6] = newState.top[2]; newState.back[3] = newState.top[5]; newState.back[0] = newState.top[8];
+                    newState.top[2] = tempCol[0]; newState.top[5] = tempCol[1]; newState.top[8] = tempCol[2];
                     break;
-                case 'R_prime': // Right face counter-clockwise
+                case 'R_prime':
                     newState.right = rotateFaceCounterClockwise(newState.right);
                     tempCol = [newState.front[2], newState.front[5], newState.front[8]];
-                    newState.front[2] = newState.top[2];
-                    newState.front[5] = newState.top[5];
-                    newState.front[8] = newState.top[8];
-                    newState.top[2] = newState.back[6];
-                    newState.top[5] = newState.back[3];
-                    newState.top[8] = newState.back[0];
-                    newState.back[6] = newState.bottom[2];
-                    newState.back[3] = newState.bottom[5];
-                    newState.back[0] = newState.bottom[8];
-                    newState.bottom[2] = tempCol[0];
-                    newState.bottom[5] = tempCol[1];
-                    newState.bottom[8] = tempCol[2];
+                    newState.front[2] = newState.top[2]; newState.front[5] = newState.top[5]; newState.front[8] = newState.top[8];
+                    newState.top[2] = newState.back[6]; newState.top[5] = newState.back[3]; newState.top[8] = newState.back[0];
+                    newState.back[6] = newState.bottom[2]; newState.back[3] = newState.bottom[5]; newState.back[0] = newState.bottom[8];
+                    newState.bottom[2] = tempCol[0]; newState.bottom[5] = tempCol[1]; newState.bottom[8] = tempCol[2];
                     break;
-                case 'L': // Left face clockwise
+                case 'L':
                     newState.left = rotateFaceClockwise(newState.left);
                     tempCol = [newState.front[0], newState.front[3], newState.front[6]];
-                    newState.front[0] = newState.top[0];
-                    newState.front[3] = newState.top[3];
-                    newState.front[6] = newState.top[6];
-                    newState.top[0] = newState.back[8];
-                    newState.top[3] = newState.back[5];
-                    newState.top[6] = newState.back[2];
-                    newState.back[8] = newState.bottom[0];
-                    newState.back[5] = newState.bottom[3];
-                    newState.back[2] = newState.bottom[6];
-                    newState.bottom[0] = tempCol[0];
-                    newState.bottom[3] = tempCol[1];
-                    newState.bottom[6] = tempCol[2];
+                    newState.front[0] = newState.top[0]; newState.front[3] = newState.top[3]; newState.front[6] = newState.top[6];
+                    newState.top[0] = newState.back[8]; newState.top[3] = newState.back[5]; newState.top[6] = newState.back[2];
+                    newState.back[8] = newState.bottom[0]; newState.back[5] = newState.bottom[3]; newState.back[2] = newState.bottom[6];
+                    newState.bottom[0] = tempCol[0]; newState.bottom[3] = tempCol[1]; newState.bottom[6] = tempCol[2];
                     break;
-                case 'L_prime': // Left face counter-clockwise
+                case 'L_prime':
                     newState.left = rotateFaceCounterClockwise(newState.left);
                     tempCol = [newState.front[0], newState.front[3], newState.front[6]];
-                    newState.front[0] = newState.bottom[0];
-                    newState.front[3] = newState.bottom[3];
-                    newState.front[6] = newState.bottom[6];
-                    newState.bottom[0] = newState.back[8];
-                    newState.bottom[3] = newState.back[5];
-                    newState.bottom[6] = newState.back[2];
-                    newState.back[8] = newState.top[0];
-                    newState.back[5] = newState.top[3];
-                    newState.back[2] = newState.top[6];
-                    newState.top[0] = tempCol[0];
-                    newState.top[3] = tempCol[1];
-                    newState.top[6] = tempCol[2];
+                    newState.front[0] = newState.bottom[0]; newState.front[3] = newState.bottom[3]; newState.front[6] = newState.bottom[6];
+                    newState.bottom[0] = newState.back[8]; newState.bottom[3] = newState.back[5]; newState.bottom[6] = newState.back[2];
+                    newState.back[8] = newState.top[0]; newState.back[5] = newState.top[3]; newState.back[2] = newState.top[6];
+                    newState.top[0] = tempCol[0]; newState.top[3] = tempCol[1]; newState.top[6] = tempCol[2];
                     break;
-                case 'F': // Front face clockwise
+                case 'F':
                     newState.front = rotateFaceClockwise(newState.front);
                     tempCol = [newState.top[6], newState.top[7], newState.top[8]];
-                    newState.top[6] = newState.left[8];
-                    newState.top[7] = newState.left[5];
-                    newState.top[8] = newState.left[2];
-                    newState.left[8] = newState.bottom[2];
-                    newState.left[5] = newState.bottom[1];
-                    newState.left[2] = newState.bottom[0];
-                    newState.bottom[2] = newState.right[0];
-                    newState.bottom[1] = newState.right[3];
-                    newState.bottom[0] = newState.right[6];
-                    newState.right[0] = tempCol[0];
-                    newState.right[3] = tempCol[1];
-                    newState.right[6] = tempCol[2];
+                    newState.top[6] = newState.left[8]; newState.top[7] = newState.left[5]; newState.top[8] = newState.left[2];
+                    newState.left[8] = newState.bottom[2]; newState.left[5] = newState.bottom[1]; newState.left[2] = newState.bottom[0];
+                    newState.bottom[2] = newState.right[0]; newState.bottom[1] = newState.right[3]; newState.bottom[0] = newState.right[6];
+                    newState.right[0] = tempCol[0]; newState.right[3] = tempCol[1]; newState.right[6] = tempCol[2];
                     break;
-                case 'F_prime': // Front face counter-clockwise
+                case 'F_prime':
                     newState.front = rotateFaceCounterClockwise(newState.front);
                     tempCol = [newState.top[6], newState.top[7], newState.top[8]];
-                    newState.top[6] = newState.right[0];
-                    newState.top[7] = newState.right[3];
-                    newState.top[8] = newState.right[6];
-                    newState.right[0] = newState.bottom[2];
-                    newState.right[3] = newState.bottom[1];
-                    newState.right[6] = newState.bottom[0];
-                    newState.bottom[2] = newState.left[8];
-                    newState.bottom[1] = newState.left[5];
-                    newState.bottom[0] = newState.left[2];
-                    newState.left[8] = tempCol[0];
-                    newState.left[5] = tempCol[1];
-                    newState.left[2] = tempCol[2];
+                    newState.top[6] = newState.right[0]; newState.top[7] = newState.right[3]; newState.top[8] = newState.right[6];
+                    newState.right[0] = newState.bottom[2]; newState.right[3] = newState.bottom[1]; newState.right[6] = newState.bottom[0];
+                    newState.bottom[2] = newState.left[8]; newState.bottom[1] = newState.left[5]; newState.bottom[0] = newState.left[2];
+                    newState.left[8] = tempCol[0]; newState.left[5] = tempCol[1]; newState.left[2] = tempCol[2];
                     break;
-                case 'B': // Back face clockwise
+                case 'B':
                     newState.back = rotateFaceClockwise(newState.back);
                     tempCol = [newState.top[0], newState.top[1], newState.top[2]];
-                    newState.top[0] = newState.right[2];
-                    newState.top[1] = newState.right[5];
-                    newState.top[2] = newState.right[8];
-                    newState.right[2] = newState.bottom[8];
-                    newState.right[5] = newState.bottom[7];
-                    newState.right[8] = newState.bottom[6];
-                    newState.bottom[8] = newState.left[6];
-                    newState.bottom[7] = newState.left[3];
-                    newState.bottom[6] = newState.left[0];
-                    newState.left[6] = tempCol[0];
-                    newState.left[3] = tempCol[1];
-                    newState.left[0] = tempCol[2];
+                    newState.top[0] = newState.right[2]; newState.top[1] = newState.right[5]; newState.top[2] = newState.right[8];
+                    newState.right[2] = newState.bottom[8]; newState.right[5] = newState.bottom[7]; newState.right[8] = newState.bottom[6];
+                    newState.bottom[8] = newState.left[6]; newState.bottom[7] = newState.left[3]; newState.bottom[6] = newState.left[0];
+                    newState.left[6] = tempCol[0]; newState.left[3] = tempCol[1]; newState.left[0] = tempCol[2];
                     break;
-                case 'B_prime': // Back face counter-clockwise
+                case 'B_prime':
                     newState.back = rotateFaceCounterClockwise(newState.back);
                     tempCol = [newState.top[0], newState.top[1], newState.top[2]];
-                    newState.top[0] = newState.left[6];
-                    newState.top[1] = newState.left[3];
-                    newState.top[2] = newState.left[0];
-                    newState.left[6] = newState.bottom[8];
-                    newState.left[3] = newState.bottom[7];
-                    newState.left[0] = newState.bottom[6];
-                    newState.bottom[8] = newState.right[2];
-                    newState.bottom[7] = newState.right[5];
-                    newState.bottom[6] = newState.right[8];
-                    newState.right[2] = tempCol[0];
-                    newState.right[5] = tempCol[1];
-                    newState.right[8] = tempCol[2];
+                    newState.top[0] = newState.left[6]; newState.top[1] = newState.left[3]; newState.top[2] = newState.left[0];
+                    newState.left[6] = newState.bottom[8]; newState.left[3] = newState.bottom[7]; newState.left[0] = newState.bottom[6];
+                    newState.bottom[8] = newState.right[2]; newState.bottom[7] = newState.right[5]; newState.bottom[6] = newState.right[8];
+                    newState.right[2] = tempCol[0]; newState.right[5] = tempCol[1]; newState.right[8] = tempCol[2];
                     break;
             }
-            cubeState = newState;
+            return newState;
+        }
+
+        // This is the core move engine, now it uses the pure function getNextState
+        function applyMove(move) {
+            cubeState = getNextState(cubeState, move);
         }
 
         function rotateFaceClockwise(face) {
